@@ -24,13 +24,13 @@ jobs:
   python-app-build:
     docker:
       - image: circleci/python:3.6.4
-      environment:
-        PIPENV_VENV_IN_PROJECT: true
-        DATABASE_URL: postgresql://root@localhost/circle_test?sslmode=disable
-    - image: circleci/postgres:9.6.2
-       environment:
-         POSTGRES_USER: root 
-         POSTGRES_DB: circle_test
+        environment:
+          PIPENV_VENV_IN_PROJECT: true
+          DATABASE_URL: postgresql://root@localhost/circle_test?sslmode=disable
+      - image: circleci/postgres:9.6.2
+        environment:
+          POSTGRES_USER: root 
+          POSTGRES_DB: circle_test
     steps:
       - buildevents/with_job_span:
           steps:
