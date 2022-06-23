@@ -1,0 +1,71 @@
+version: 2.1
+
+orbs: 
+  buildevents: honeycombio/buildevents@0.6.0
+
+jobs:
+  setting_up_buildevents: # setting up buildevents
+    docker:
+     - image: cibuilds/base
+    steps: 
+      - buildevents/start_trace
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - be/build_start
+            - be/bin-linux/buildevents
+            - be/bin-darwin/buildevents
+  watching_build_events:
+    docker:
+     - image: cibuilds/base
+    steps:
+     - buildevents/watch_build_and_finish
+  
+  python-app-build:
+    docker:
+      - circleci/python:3.6.4
+      environment:
+        PIPENV_VENV_IN_PROJECT: true
+        DATABASE_URL: postgresql://root@localhost/circle_test?sslmode=disable
+    - image: circleci/postgres:9.6.2
+       environment:
+         POSTGRES_USER: root 
+         POSTGRES_DB: circle_test
+    steps:
+      - buildevents/with_job_span:
+          steps:
+            - checkout
+            - buildevents/berun: 
+                bename: circleci_user_permissions
+                becommand: sudo chown -R circleci:circleci /usr/local/bin
+            - run: sudo chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
+            - restore_cache: 
+                key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+            - buildevents/berun:  
+                bename: install_pipenv
+                becommand: |
+                  sudo pip install pipenv 
+                  pipenv install
+            - save_cache:
+                key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+                paths:
+                  - "venv"
+            - buildevents/berun:
+                bename: run_django_test
+                becommand: |
+                  pipenv run python manage.py test 
+            - store_test_results:
+                path: test-results
+            - store_artifacts:
+                path: test-results
+                destination: tr1 
+workflows:
+  vgw-buildevents-test:
+   jobs:
+     - setting_up_buildevents
+     - watching_build_events:
+         requires:
+           - setting_up_buildevents
+     - python-app-build:
+         requires:
+           - setting_up_buildevents
